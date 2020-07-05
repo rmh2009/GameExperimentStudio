@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dodge Bullets</title>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<style>
+    .infobox {
+        display:flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-direction: row;
+        width: 640px;
+    }
+    .infobox button {
+        width: 100px;
+        height: 30px;
+    }
+</style>
+</head>
+
+<body>
+<canvas id="viewport" width="640" height="480"></canvas>
+<div class="infobox">
+    <p id='ammo' width="500"></p>
+    <p id='enemies_killed' width="500"></p>
+</div>
+<div class="infobox">
+    <button id='start_button' onclick="gameStart()">start</button>
+    <p id='score' width="400"></p>
+</div>
+<div>
+    <p>Survive the alien invasions!</p>
+    <p>Press Start to start the game. Use 'awsd' keys to control movement.</p>
+    <p>Use 'Space' to place a black hole that attracts and slows down enemies.</Space></p>
+    <p>Use 'f' to place a bomb that will detonate and destroy enemies.</Space></p>
+    <p>You are rewarded one black hole and one bomb for every 5 enemies killed :)</Space></p>
+</div>
+</body>
+</html>
+
+<script>
+// The function gets called when the window is fully loaded
+let gameStart = function() {
+    // Get the canvas and context
+    let canvas = document.getElementById("viewport"); 
+    let context = canvas.getContext("2d");
+ 
+    // Define the image dimensions
+    let CANVAS_WIDTH = canvas.width;
+    let CANVAS_HEIGHT = canvas.height;
+ 
+    // Create an ImageData object
+    let imagedata = context.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    let INITIAL_SPEED = 400;
+    let PLAYER_SPEED = 400;
+    let MAX_SPEED = 400; // max speed in each subcomponent.
+    let PLAYER_WIDTH = 10;
+    let ENMEY_WIDTH = 10;
+    let NUM_ENEMIES = 10;
+    let WALL_THICKNESS = 2;
+    let INVINCIBLE = true;
+
+    let game_over = false;
+    let game_stopped = true;
+    let frames_count = 0;
+    let start_time = Date.now(); // miliseconds.
+    let temp_time = Date.now(); // used for calculating fps only.
+    let game_time = Date.now();
+
+    let enemies_destroyed = 0;
+    let enemies_destroyed_waiting_reward = 0;
+    let black_holes_left = 10;
+    let bombs_left = 10;
+
+    function Sprite (x, y, w, h, speed = 0, x_direction = 0, y_direction = 0, is_player = false) {
+        this.x = x;
+        this.y = y;
+        this.x2 = x + w - 1;
+        this.y2 = y + h - 1;
+        this.w = w;
+        this.h = h;
+        let direction_length = Math.sqrt(x_direction * x_direction + y_direction * y_direction);
+        this.dir_x = speed * x_direction / direction_length;
+        this.dir_y = speed * y_direction / direction_length; 
+        this.mass = 1;
+        // If true this item's time is not affected by the black hole.
+        this.time_warper = false;
+    };
+
+    // color is an array of format [Red, Green, Blue, Alpha], each value is 0 to 255.
+    Sprite.prototype.draw =  function(color) {
+        for (let i = Math.floor(this.x); i <= Math.floor(this.x2); i++) {
+            for (let j = Math.floor(this.y); j <= Math.floor(this.y2); j++) {
+                let index = (i + j * CANVAS_WIDTH) * 4;
+                imagedata.data[index] = color [0];
+                imagedata.data[index + 1] = color [1];
+                imagedata.data[index + 2] = color [2];
+                imagedata.data[index + 3] = color [3];
+            }
+        }
+    }
+
+    Sprite.prototype.resetLocation = function(x, y) {
+        this.x = x;
+        this.y = y;
+        this.x2 = this.x + this.w - 1;
+        this.y2 = this.y + this.h - 1;
+    }
+    
+    // Returns if two items collide with each other.
+    Sprite.prototype.collide = function(item2) {
+        if (this.x2 < item2.x || this.x > item2.x2){
+            return false;
+        }
+        if (this.y2 < item2.y || this.y > item2.y2){
+            return false;
+        }
+        //console.log('collide!', item1, item2);
+        return true;
+    }
+
+    // Updates the location, speed etc of the sprite. Also detects if this item
+    // collides with walls and make adjustments accordingly.
+    Sprite.prototype.update = function(timedelta) {
+        if (this.dir_x === 0 && this.dir_y ===0) return;
+        let time_factor = 1;
+        if (sprites['gravity_field'] && !this.time_warper) {
+            let gravity = sprites['gravity_field'];
+            let dx = gravity.x - this.x;
+            let dy = gravity.y - this.y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            let gforce = gravity.gravity * this.mass / (dist * dist+ 10); // Prevents the gravity becoming too large in proximity.
+            if (frames_count == 100) {
+                console.log('gravity object:', sprites['gravity']);
+                console.log('gravity is : ', gforce);
+            }
+            // Time slows down as you approach the black hole.
+            time_factor = Math.min(1, dist / (gravity.radius * 10));
+            // (d_vx, d_vy) = f/m * dt
+            this.dir_x = Math.min(MAX_SPEED, Math.max(-MAX_SPEED, this.dir_x + gforce * dx / (dist + 10) * timedelta * time_factor));
+            this.dir_y = Math.min(MAX_SPEED, Math.max(-MAX_SPEED, this.dir_y + gforce * dy / (dist + 10) * timedelta * time_factor));
+        }
+        this.x = this.x + this.dir_x * timedelta * time_factor;
+        this.y = this.y + this.dir_y * timedelta * time_factor;
+        this.x2 = this.x + this.w - 1;
+        this.y2 = this.y + this.h - 1;
+
+        if (this.collide(map['left'])) {
+            this.dir_x = -this.dir_x;
+            this.resetLocation(map['left'].x2, this.y);
+        }
+        if (this.collide(map.right)) {
+            this.dir_x = -this.dir_x;
+            this.resetLocation(map.right.x - this.w, this.y);
+        }
+        if (this.collide(map['top'])) {
+            this.dir_y = -this.dir_y;
+            this.resetLocation(this.x, map['top'].y2);
+        }
+        if (this.collide(map['bottom'])) {
+            this.dir_y = -this.dir_y;
+            this.resetLocation(this['x'], map['bottom'].y - this.h);
+        }
+        // Can not move beyond wall.
+    }
+
+    function GravityField(x, y, radius = 50, gravity = 20000000) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.start_time = Date.now();
+        this.life_msec = 3000;
+        // Gravitational Constant
+        this.gravity = gravity;
+    }
+
+    GravityField.prototype.draw = function() {
+        context.beginPath();
+        context.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+        context.strokeStyle = "#000000";
+        context.stroke();
+    }
+
+    GravityField.prototype.shouldBeGone = function() {
+        if (Date.now() - this.start_time > this.life_msec) {
+            return true;
+        }
+        return false;
+    }
+
+    function Bomb(x, y, radius = 40) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.start_time = Date.now();
+        this.life_msec = 2000;
+    }
+    Bomb.prototype.draw = function() {
+        context.beginPath();
+        context.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+        context.strokeStyle = "#FF0000";
+        context.stroke();
+    }
+
+    Bomb.prototype.shouldBeGone = function() {
+        if (Date.now() - this.start_time > this.life_msec) {
+            return true;
+        }
+        return false;
+    }
+
+    Bomb.prototype.detonate = function() {
+        let remaining_enemies = [];
+        for(let i = 0; i < sprites['enemies'].length; i++) {
+            let dx = sprites['enemies'][i].x - this.x;
+            let dy = sprites['enemies'][i].y - this.y;
+            if (Math.sqrt(dx * dx + dy * dy) < this.radius) {
+                continue;
+            }
+            remaining_enemies.push(sprites['enemies'][i]);
+        }
+        let newly_destroyed = sprites['enemies'].length - remaining_enemies.length;
+        enemies_destroyed += newly_destroyed;
+        enemies_destroyed_waiting_reward += newly_destroyed;
+        sprites['enemies'] = remaining_enemies;
+
+        let reward = Math.floor(enemies_destroyed_waiting_reward / 5);
+        if (reward > 0) {
+            bombs_left += reward;
+            black_holes_left += reward;
+            enemies_destroyed_waiting_reward = enemies_destroyed_waiting_reward % 5;
+        }
+    }
+    
+    let sprites = {
+        'player' : new Sprite(10, 0, PLAYER_WIDTH, PLAYER_WIDTH, INITIAL_SPEED, 1, 5, true),
+        'enemies' : [],
+        'gravity_field' : null,
+        'bomb': null,
+    };
+
+    let map = {
+        'height': CANVAS_HEIGHT,
+        'width': CANVAS_WIDTH,
+        'left': new Sprite(0, 0, WALL_THICKNESS, CANVAS_HEIGHT), 
+        'right': new Sprite(CANVAS_WIDTH-WALL_THICKNESS, 0, WALL_THICKNESS, CANVAS_HEIGHT),
+        'top': new Sprite(0, 0, CANVAS_WIDTH, WALL_THICKNESS),
+        'bottom': new Sprite(0, CANVAS_HEIGHT-WALL_THICKNESS, CANVAS_WIDTH, WALL_THICKNESS),
+    };
+
+    let input = {
+        left : false,
+        right: false, 
+        up: false,
+        down: false,
+        space: false, // For generating black hole.
+        bomb: false, // For generating a bomb.
+    }
+
+    let world = {
+        'sprites': sprites,
+        'map': map,
+    };
+
+    function updatePlayerStatus() {
+       let player = sprites['player'];
+       player.dir_x = 0;
+       player.dir_y = 0;
+       if (input.left) {
+           player.dir_x = -PLAYER_SPEED;
+       } else if (input.right) {
+           player.dir_x = PLAYER_SPEED;
+       }
+       if (input.down) {
+           player.dir_y = PLAYER_SPEED; // the y direction grows downwards.
+       } else if (input.up) {
+           player.dir_y = -PLAYER_SPEED;
+       }
+    }
+
+    function updateInfo() {
+        info = 'Time lapsed: ' + (Date.now() - start_time) / 1000 + 's';
+        if (game_over) {
+            info = info + ' GAME OVER!';
+        }
+        $('#score').html(info);
+        $('#start_button').prop('disabled', true);
+        if (game_over) {
+            $('#start_button').prop('disabled', false);
+        }
+        $('#ammo').html('Black holes left: ' + black_holes_left + ' Bombs left: ' + bombs_left);
+        $('#enemies_killed').html('Enemies killed: ' + enemies_destroyed);
+    }
+
+    function randomSpawnEnemies(num) {
+        for (let i = 0; i < num; i++) {
+            let  x = Math.random() * (CANVAS_WIDTH - 20) + 10;
+            let  y = 5;
+            sprites['enemies'].push(new Sprite(x, y, ENMEY_WIDTH, ENMEY_WIDTH, INITIAL_SPEED,
+                Math.random() * 10 - 5, Math.random() * 10 - 5));
+        }
+    }
+
+    function updateWorld() {
+        let time_now = Date.now();
+        let timedelta = (time_now - game_time) /1000;
+        let player = world['sprites']['player'];
+
+        updatePlayerStatus();
+        player.update(timedelta);
+        for (let enemy of sprites['enemies']) {
+            enemy.update(timedelta);
+        }
+        // Check if player collides with any enemies.
+        for (let enemy of sprites['enemies']) {
+            if (player.collide(enemy) && !INVINCIBLE) {
+                game_over = true;
+                return;
+            }
+        }
+
+        if (sprites['gravity_field']) {
+            if (sprites['gravity_field'].shouldBeGone()) {
+                console.log('gravity field cleared!');
+                sprites['gravity_field'] = null;
+            }
+        }
+        if (!sprites['gravity_field'] && input['space'] && black_holes_left > 0) {
+            sprites['gravity_field'] = new GravityField(sprites['player'].x, sprites['player'].y);
+            black_holes_left--;
+        }
+        if (sprites['bomb']) {
+            if (sprites['bomb'].shouldBeGone()) {
+                console.log('Bomb exploded!');
+                sprites['bomb'].detonate();
+                sprites['bomb'] = null;
+            }
+        }
+        if (!sprites['bomb'] && input['bomb'] && bombs_left > 0) {
+            sprites['bomb'] = new Bomb(sprites['player'].x, sprites['player'].y);
+            bombs_left--;
+        }
+
+        // Spawns new enemies every 10 seconds.
+        // Number of enemies spaned is sqrt(seconds_elapsed);
+        if (Math.floor((Date.now() - start_time) / 1000) % 10 == 0 &&
+            Math.floor(game_time / 1000) != Math.floor(time_now / 1000)) {
+            randomSpawnEnemies(Math.floor(Math.sqrt((game_time - start_time) / 1000)));
+        }
+
+        game_time = time_now;
+    };
+
+    function clearWorld() {
+        context.canvas.width = context.canvas.width;
+        for (let i = 0; i < imagedata.data.length; ++i) {
+          imagedata.data[i] = 0;
+        }
+    }
+ 
+    function drawWorld() {
+        let player = world['sprites']['player'];
+        let map = world['map'];
+
+        //console.log('player location: ', player);
+        clearWorld();
+        map['left'].draw([0,0,255,255]);
+        map.right.draw([0,0,255,255]);
+        map['top'].draw([0,0,255,255]);
+        map['bottom'].draw([0,0,255,255]);
+        player.draw([0, 0, 255, 255]);
+        for (let enemy of sprites['enemies']) {
+            enemy.draw([255, 0, 0, 255]);
+        }
+        
+        // Draw the image data to the canvas
+        context.putImageData(imagedata, 0, 0);
+
+        // gravity needs to be drawn last.
+        if (sprites['gravity_field']) {
+            sprites['gravity_field'].draw();
+        }
+        if (sprites['bomb']) {
+            sprites['bomb'].draw();
+        }
+    }
+
+    //Initialize enemies
+    function initializeSprites() {
+        sprites['player'] = new Sprite(10, 10, PLAYER_WIDTH, PLAYER_WIDTH, INITIAL_SPEED, 1, 5, true);
+        // Player is less affected by gravity.
+        sprites['player'].mass = 0.01;
+        sprites['player'].time_warper = true;
+        sprites['enemies'] = [];
+        for (let i = 0; i < NUM_ENEMIES; i++) {
+            let  x = Math.random() * (CANVAS_WIDTH - 20) + 10;
+            let  y = Math.random() * (CANVAS_HEIGHT - 20) + 10;
+            sprites['enemies'].push(new Sprite(x, y, ENMEY_WIDTH, ENMEY_WIDTH, INITIAL_SPEED,
+                Math.random() * 10 - 5, Math.random() * 10 - 5));
+        }
+        sprites['gravity_field'] = null;
+        sprites['bomb'] = null;
+        enemies_destroyed = 0;
+        bombs_left = 10;
+        black_holes_left = 10;
+        console.log(sprites);
+    }
+
+    function registerInputHandler() {
+        $(document).keydown(function(event){
+            console.log(event);
+          if (event.key == 'a') input.left = true;
+          if (event.key == 's') input.down= true;
+          if (event.key == 'd') input.right = true;
+          if (event.key == 'w') input.up = true;
+          if (event.key == ' ') input.space = true;
+          if (event.key == 'f') input.bomb = true;
+        });
+        $(document).keyup(function(event){
+          if (event.key == 'a') input['left'] = false;
+          if (event.key == 's') input.down= false;
+          if (event.key == 'd') input.right = false;
+          if (event.key == 'w') input.up = false;
+          if (event.key == ' ') input.space = false;
+          if (event.key == 'f') input.bomb = false;
+        });
+    }
+
+    function gameLoop() {
+        if (game_stopped) {
+            initializeSprites();
+            game_over = false;
+            game_stopped = false;
+            start_time = Date.now();
+            game_time = start_time;
+        }
+        if (game_over) {
+            game_stopped =true;
+            return;
+        }
+
+        window.requestAnimationFrame(gameLoop);
+        updateWorld();
+        drawWorld();
+        
+        if (frames_count % 200 == 0) {
+            let frame_rate = frames_count / (Date.now() - temp_time) * 1000;
+            console.log("frames : ", frames_count);
+            console.log("frame rate: ", frame_rate);
+            frames_count = 0;
+            temp_time = Date.now();
+        }
+        ++frames_count;
+ 
+        updateInfo();
+    }
+    
+    registerInputHandler();
+    // Use this to start the game.
+    return gameLoop;
+}();
+</script>
