@@ -22,18 +22,20 @@
 <body>
 <canvas id="viewport" width="640" height="480"></canvas>
 <div class="infobox">
-    <p id='ammo' width="500"></p>
+    <p id='ammo' width="400"></p>
+    <p id='ammo2' width="400"></p>
     <p id='enemies_killed' width="500"></p>
 </div>
 <div class="infobox">
     <button id='start_button' onclick="gameStart()">start</button>
+    <p id='gameover'></p>
     <p id='score' width="400"></p>
 </div>
 <div>
     <p>Survive the alien invasions!</p>
-    <p>Press Start to start the game. Use 'awsd' keys to control movement.</p>
-    <p>Use 'h' to place a black hole that attracts and slows down enemies.</Space></p>
-    <p>Use 'j' to place a bomb that will detonate and destroy enemies.</Space></p>
+    <p>Press Start to start the game. Use 'awsd' keys to control your space ship (blue dot) and avoid the aliens (red dot).</p>
+    <p>Use 'j' to place a black hole that attracts and slows down enemies.</Space></p>
+    <p>Use 'k' to place a bomb that will detonate and destroy enemies.</Space></p>
     <p>You are rewarded one black hole and one bomb for every 5 enemies killed :)</Space></p>
 </div>
 </body>
@@ -278,15 +280,18 @@ let gameStart = function() {
 
     function updateInfo() {
         info = 'Time lapsed: ' + (Date.now() - start_time) / 1000 + 's';
-        if (game_over) {
-            info = info + ' GAME OVER!';
-        }
         $('#score').html(info);
+        if (game_over) {
+          $('#gameover').html('GAME OVER!');
+        } else {
+          $('#gameover').html('');
+        }
         $('#start_button').prop('disabled', true);
         if (game_over) {
             $('#start_button').prop('disabled', false);
         }
-        $('#ammo').html('Black holes left: ' + black_holes_left + ' Bombs left: ' + bombs_left);
+        $('#ammo').html('Black holes left: ' + black_holes_left);
+        $('#ammo2').html('Bombs left: ' + bombs_left);
         $('#enemies_killed').html('Enemies killed: ' + enemies_destroyed);
     }
 
@@ -409,16 +414,16 @@ let gameStart = function() {
           if (event.key == 's') input.down= true;
           if (event.key == 'd') input.right = true;
           if (event.key == 'w') input.up = true;
-          if (event.key == 'h') input.blackhole = true;
-          if (event.key == 'j') input.bomb = true;
+          if (event.key == 'j') input.blackhole = true;
+          if (event.key == 'k') input.bomb = true;
         });
         $(document).keyup(function(event){
           if (event.key == 'a') input['left'] = false;
           if (event.key == 's') input.down= false;
           if (event.key == 'd') input.right = false;
           if (event.key == 'w') input.up = false;
-          if (event.key == 'h') input.blackhole = false;
-          if (event.key == 'j') input.bomb = false;
+          if (event.key == 'j') input.blackhole = false;
+          if (event.key == 'k') input.bomb = false;
         });
     }
 
