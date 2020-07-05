@@ -32,8 +32,8 @@
 <div>
     <p>Survive the alien invasions!</p>
     <p>Press Start to start the game. Use 'awsd' keys to control movement.</p>
-    <p>Use 'Space' to place a black hole that attracts and slows down enemies.</Space></p>
-    <p>Use 'f' to place a bomb that will detonate and destroy enemies.</Space></p>
+    <p>Use 'h' to place a black hole that attracts and slows down enemies.</Space></p>
+    <p>Use 'j' to place a bomb that will detonate and destroy enemies.</Space></p>
     <p>You are rewarded one black hole and one bomb for every 5 enemies killed :)</Space></p>
 </div>
 </body>
@@ -132,10 +132,6 @@ let gameStart = function() {
             let dy = gravity.y - this.y;
             let dist = Math.sqrt(dx * dx + dy * dy);
             let gforce = gravity.gravity * this.mass / (dist * dist+ 10); // Prevents the gravity becoming too large in proximity.
-            if (frames_count == 100) {
-                console.log('gravity object:', sprites['gravity']);
-                console.log('gravity is : ', gforce);
-            }
             // Time slows down as you approach the black hole.
             time_factor = Math.min(1, dist / (gravity.radius * 10));
             // (d_vx, d_vy) = f/m * dt
@@ -255,7 +251,7 @@ let gameStart = function() {
         right: false, 
         up: false,
         down: false,
-        space: false, // For generating black hole.
+        blackhole: false, // For generating black hole.
         bomb: false, // For generating a bomb.
     }
 
@@ -327,7 +323,7 @@ let gameStart = function() {
                 sprites['gravity_field'] = null;
             }
         }
-        if (!sprites['gravity_field'] && input['space'] && black_holes_left > 0) {
+        if (!sprites['gravity_field'] && input['blackhole'] && black_holes_left > 0) {
             sprites['gravity_field'] = new GravityField(sprites['player'].x, sprites['player'].y);
             black_holes_left--;
         }
@@ -364,7 +360,6 @@ let gameStart = function() {
         let player = world['sprites']['player'];
         let map = world['map'];
 
-        //console.log('player location: ', player);
         clearWorld();
         map['left'].draw([0,0,255,255]);
         map.right.draw([0,0,255,255]);
@@ -410,21 +405,20 @@ let gameStart = function() {
 
     function registerInputHandler() {
         $(document).keydown(function(event){
-            console.log(event);
           if (event.key == 'a') input.left = true;
           if (event.key == 's') input.down= true;
           if (event.key == 'd') input.right = true;
           if (event.key == 'w') input.up = true;
-          if (event.key == ' ') input.space = true;
-          if (event.key == 'f') input.bomb = true;
+          if (event.key == 'h') input.blackhole = true;
+          if (event.key == 'j') input.bomb = true;
         });
         $(document).keyup(function(event){
           if (event.key == 'a') input['left'] = false;
           if (event.key == 's') input.down= false;
           if (event.key == 'd') input.right = false;
           if (event.key == 'w') input.up = false;
-          if (event.key == ' ') input.space = false;
-          if (event.key == 'f') input.bomb = false;
+          if (event.key == 'h') input.blackhole = false;
+          if (event.key == 'j') input.bomb = false;
         });
     }
 
@@ -447,7 +441,6 @@ let gameStart = function() {
         
         if (frames_count % 200 == 0) {
             let frame_rate = frames_count / (Date.now() - temp_time) * 1000;
-            console.log("frames : ", frames_count);
             console.log("frame rate: ", frame_rate);
             frames_count = 0;
             temp_time = Date.now();
