@@ -197,7 +197,8 @@ let gameStart = function() {
     }
     Bomb.prototype.draw = function() {
         context.beginPath();
-        context.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+        let life_left = Date.now() - this.start_time;
+        context.arc(this.x, this.y, this.radius, 0, 2 * Math.PI * life_left / this.life_msec);
         context.strokeStyle = "#FF0000";
         context.stroke();
     }
