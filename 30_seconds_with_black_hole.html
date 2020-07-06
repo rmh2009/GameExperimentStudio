@@ -59,7 +59,7 @@ let gameStart = function() {
     let PLAYER_SPEED = 400;
     let MAX_SPEED = 400; // max speed in each subcomponent.
     let PLAYER_WIDTH = 10;
-    let ENMEY_WIDTH = 10;
+    let ENEMEY_WIDTH = 10;
     let NUM_ENEMIES = 10;
     let WALL_THICKNESS = 2;
     let INVINCIBLE = false;
@@ -300,7 +300,9 @@ let gameStart = function() {
         for (let i = 0; i < num; i++) {
             let  x = Math.random() * (CANVAS_WIDTH - 20) + 10;
             let  y = 5;
-            sprites['enemies'].push(new Sprite(x, y, ENMEY_WIDTH, ENMEY_WIDTH, INITIAL_SPEED,
+            let w = Math.floor(Math.random() * 4 * ENEMEY_WIDTH + 5);
+            let h = Math.floor(Math.random() * 4 * ENEMEY_WIDTH + 5);
+            sprites['enemies'].push(new Sprite(x, y, w, h, INITIAL_SPEED,
                 Math.random() * 10 - 5, Math.random() * 10 - 5));
         }
     }
@@ -398,7 +400,7 @@ let gameStart = function() {
         for (let i = 0; i < NUM_ENEMIES; i++) {
             let  x = Math.random() * (CANVAS_WIDTH - 20) + 10;
             let  y = Math.random() * (CANVAS_HEIGHT - 20) + 10;
-            sprites['enemies'].push(new Sprite(x, y, ENMEY_WIDTH, ENMEY_WIDTH, INITIAL_SPEED,
+            sprites['enemies'].push(new Sprite(x, y, ENEMEY_WIDTH, ENEMEY_WIDTH, INITIAL_SPEED,
                 Math.random() * 10 - 5, Math.random() * 10 - 5));
         }
         sprites['gravity_field'] = null;
